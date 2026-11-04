@@ -22,6 +22,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberUpdatedState
@@ -35,11 +36,12 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import java.awt.Cursor
+import kotlin.math.pow
+import kotlin.math.roundToInt
 import ma7moud3ly.fast.compose.bindings.resources.ResourceProvider
 import ma7moud3ly.fast.compose.interpreter.ExternalResolver
 import ma7moud3ly.fast.compose.interpreter.LocalExternalResolver
 import ma7moud3ly.fast.compose.interpreter.SourceProvider
-import ma7moud3ly.fast.compose.ui.FastComposePreview
 import ma7moud3ly.fast.compose.ui.rememberComposeCode
 
 /** The previewed file and its current text, written by [PreviewPanel] on the UI thread. */
@@ -66,6 +68,22 @@ class PreviewState(isDark: Boolean) {
     /** Recreates the preview: parses the file again, loads the files it uses again and restarts its previews. */
     fun rebuild() {
         generation++
+    }
+
+    /** The device whose width previews are laid out at; saved per project by [PreviewPanel]. */
+    var device: PreviewDevice by mutableStateOf(PreviewDevice.Phone)
+
+    /** The previews' scale, e.g. 1.5 for 150 %; null is Fit, which scales the device width to the panel's width. */
+    var zoom: Float? by mutableStateOf(null)
+
+    /** The scale Fit gave last; zooming in or out from Fit starts from it. */
+    var fitZoom: Float by mutableFloatStateOf(1f)
+
+    /** Zooms in by 10 % per step, or out with negative [steps], from the current scale. */
+    fun zoomBy(steps: Int) {
+        val current = zoom ?: fitZoom
+        val next = current * 1.1f.pow(steps)
+        zoom = ((next * 100).roundToInt() / 100f).coerceIn(MIN_ZOOM, MAX_ZOOM)
     }
 
     /** Height of the logs below the previews, changed by dragging the divider above them; kept across files. */
@@ -170,7 +188,7 @@ private fun FilePreview(state: PreviewState, path: String, onOpen: (file: String
                 )
 
                 else -> CompositionLocalProvider(LocalExternalResolver provides state.externals) {
-                    FastComposePreview(code, Modifier.weight(1f).fillMaxWidth(), resources = state.resources)
+                    DevicePreviews(state, code, Modifier.weight(1f).fillMaxWidth())
                 }
             }
             if (hasLogs(code)) {
@@ -179,6 +197,10 @@ private fun FilePreview(state: PreviewState, path: String, onOpen: (file: String
                 }
                 val logsHeight = state.logsHeight.coerceIn(MIN_LOGS_HEIGHT, maxLogs)
                 PreviewLogs(code, Modifier.fillMaxWidth().height(logsHeight), onOpen)
+            }
+            if (crash == null && program?.previews?.isEmpty() != true) {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                DeviceBar(state, Modifier.fillMaxWidth())
             }
         }
     }
@@ -208,7 +230,7 @@ private val MIN_LOGS_HEIGHT = 48.dp
 private val MIN_PREVIEW_HEIGHT = 80.dp
 
 @Composable
-private fun Message(text: String, modifier: Modifier) {
+internal fun Message(text: String, modifier: Modifier) {
     Box(modifier, contentAlignment = Alignment.Center) {
         Text(text, style = MaterialTheme.typography.bodyMedium)
     }

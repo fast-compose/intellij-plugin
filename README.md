@@ -6,9 +6,11 @@
 
 **Instant Jetpack Compose previews in Android Studio and IntelliJ IDEA. No compiler, no build, no waiting.**
 
-Renders the `@Preview` functions of the open Kotlin file as you type, powered by
+Renders the previews of the open Kotlin file as you type, powered by
 [Fast Compose](https://github.com/fast-compose/fast-compose).
 
+[![JetBrains Marketplace](https://img.shields.io/jetbrains/plugin/v/35776?label=Marketplace&logo=jetbrains)](https://plugins.jetbrains.com/plugin/35776-fast-compose-preview)
+[![Downloads](https://img.shields.io/jetbrains/plugin/d/35776?label=Downloads)](https://plugins.jetbrains.com/plugin/35776-fast-compose-preview)
 [![Fast Compose](https://img.shields.io/maven-central/v/io.github.fast-compose/fast-compose?label=Fast%20Compose)](https://central.sonatype.com/namespace/io.github.fast-compose)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 ![IDEs](https://img.shields.io/badge/IDEs-Android%20Studio%20%7C%20IntelliJ%20IDEA%202026.1%2B-3DDC84?logo=androidstudio&logoColor=white)
@@ -18,18 +20,34 @@ Renders the `@Preview` functions of the open Kotlin file as you type, powered by
 
 ---
 
+https://github.com/user-attachments/assets/be214e67-eb49-445c-bc78-bc5f56757a48
+
+## Install
+
+In Android Studio or IntelliJ IDEA: **Settings → Plugins → Marketplace**, search for **Fast Compose Preview** and
+install it, or get it from the [JetBrains Marketplace](https://plugins.jetbrains.com/plugin/35776-fast-compose-preview).
+Then open a Kotlin file with preview functions and click **Fast Compose Preview** on the right side bar.
+
 ## Features
 
 - **Fast Compose Preview** tool window on the right side bar, next to Running Devices.
 - Follows the selected Kotlin editor and its unsaved text. Selecting another file shows that file's previews, or none;
   a previous file's preview is never kept.
-- `@Preview` first: a file is checked for a `@Preview` annotation in the background before anything else, with the
-  engine's `KotlinParser.hasPreviews`, so comments, strings and imports don't count. Without one, nothing is done: no parsing, no
-  resource listing, no lookups in other files, no rendering, no logs. Adding one starts the preview.
+- Files without previews cost nothing: the file is checked for preview functions in the background first (comments,
+  strings and imports don't count), and nothing is parsed, loaded or rendered until it has one.
+- Each preview gets its own frame at a device size, scaled to fit the panel with the device's aspect ratio, so
+  `Scaffold` screens look as they do on a device. Previews without `widthDp`/`heightDp` wrap their content up to that
+  size. Scaling changes the density, so text stays sharp and clicks land correctly. Previews are centered and the
+  list scrolls both ways.
+- Bar below the previews:
+  - **Device**: Phone (411 × 891 dp, default), Foldable (673 × 841 dp), Tablet (1280 × 800 dp) or Desktop
+    (1920 × 1080 dp).
+  - **Zoom**: − and +, and a menu with Fit (default), 50 %, 75 %, 100 % and 150 %; Ctrl + mouse wheel also zooms.
+    Device and zoom are saved per project.
 - Title bar buttons:
   - **Refresh Preview** rebuilds the preview, reading the file, the files it uses and its resources again.
-  - **Open Preview in Window / Dock Preview** moves the preview to its own window, which can be dragged to a second
-    display. The IDE remembers the mode and position.
+  - **Open Preview in Window** moves the preview to its own window, which can be dragged to a second display; the
+    window's own Dock button moves it back. The IDE remembers the mode and position.
   - **Report Issue** opens a new GitHub issue for the Fast Compose engine (rendering, unsupported APIs, errors) or the
     plugin, prefilled with the plugin, engine, IDE and OS versions. No code is sent.
 - Crashes never leave an empty panel: an exception Compose throws while composing, measuring or drawing a preview is

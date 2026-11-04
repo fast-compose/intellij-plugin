@@ -20,6 +20,8 @@
         <ul>
             <li>Previews follow the open Kotlin file and its unsaved text: no save, no build, no manual refresh.</li>
             <li>Switch files and the preview switches with you; files without a <code>@Preview</code> cost nothing.</li>
+            <li>Previews lay out at a Phone, Foldable, Tablet or Desktop size and scale to fit the panel, so
+                <code>Scaffold</code> screens look as they do on a device. Zoom from the bar below the previews or with Ctrl + mouse wheel.</li>
         </ul>
 
         <h3>🖥️ Your layout, your screens</h3>

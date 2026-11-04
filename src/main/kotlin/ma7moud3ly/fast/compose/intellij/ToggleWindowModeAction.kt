@@ -8,22 +8,21 @@ import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowType
 
 /**
- * Moves the preview between the docked tool window and a separate OS window that can be dragged to another display.
- * The IDE remembers the mode and the window's bounds.
+ * Moves the docked preview to a separate OS window that can be dragged to another display. Hidden in that window,
+ * which has the IDE's own button to dock it again. The IDE remembers the mode and the window's bounds.
  */
 class ToggleWindowModeAction(private val toolWindow: ToolWindow) : DumbAwareAction() {
 
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 
     override fun update(e: AnActionEvent) {
-        val windowed = toolWindow.type == ToolWindowType.WINDOWED
-        e.presentation.text = if (windowed) "Dock Preview" else "Open Preview in Window"
-        e.presentation.icon = if (windowed) AllIcons.General.Pin_tab else AllIcons.Actions.MoveToWindow
+        e.presentation.text = "Open Preview in Window"
+        e.presentation.icon = AllIcons.Actions.MoveToWindow
+        e.presentation.isVisible = toolWindow.type != ToolWindowType.WINDOWED
     }
 
     override fun actionPerformed(e: AnActionEvent) {
-        val windowed = toolWindow.type == ToolWindowType.WINDOWED
-        toolWindow.setType(if (windowed) ToolWindowType.DOCKED else ToolWindowType.WINDOWED, null)
+        toolWindow.setType(ToolWindowType.WINDOWED, null)
         toolWindow.activate(null)
     }
 }
