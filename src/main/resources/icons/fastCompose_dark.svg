@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 40 40">
+    <defs>
+        <linearGradient id="ring" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#3DDC97"/>
+            <stop offset="1" stop-color="#4C8DF6"/>
+        </linearGradient>
+    </defs>
+    <!-- Simplified for 16 px: no stripes or rim. Orbit, back half -->
+    <path d="M3.5 25.5 C2 21 11 15.5 22 13.5 C31 12 37.5 13.5 37 17" fill="none" stroke="url(#ring)" stroke-width="2.4"
+          stroke-linecap="round" opacity="0.5"/>
+    <!-- Cube faces, each notched around the hexagonal hole, which stays see-through -->
+    <g stroke-width="1.4" stroke-linejoin="round">
+        <path d="M20 4.5 L33.5 12.25 L25.46 16.85 L20 13.7 L14.54 16.85 L6.5 12.25 Z" fill="#42CC8A" stroke="#42CC8A"/>
+        <path d="M6.5 12.25 L14.54 16.85 L14.54 23.15 L20 26.3 L20 35.5 L6.5 27.75 Z" fill="#3F3AA2" stroke="#3F3AA2"/>
+        <path d="M33.5 12.25 L33.5 27.75 L20 35.5 L20 26.3 L25.46 23.15 L25.46 16.85 Z" fill="#327CDB" stroke="#327CDB"/>
+    </g>
+    <!-- Orbit, front half -->
+    <path d="M37 17 C37.5 21.5 28 27 17 28.5 C8.5 29.8 3 28.5 3.5 25.5" fill="none" stroke="url(#ring)"
+          stroke-width="2.6" stroke-linecap="round" opacity="0.9"/>
+</svg>

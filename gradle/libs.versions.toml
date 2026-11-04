@@ -1,0 +1,18 @@
+[versions]
+kotlin = "2.4.21"
+intellijPlatform = "2.17.0"
+fastCompose = "0.2.0"
+composeMultiplatform = "1.12.2"
+material3 = "1.12.0-alpha03"
+coil = "3.6.3"
+
+[libraries]
+fast-compose = { module = "io.github.fast-compose:fast-compose", version.ref = "fastCompose" }
+compose-material3 = { module = "org.jetbrains.compose.material3:material3", version.ref = "material3" }
+coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
+coil-network-okhttp = { module = "io.coil-kt.coil3:coil-network-okhttp", version.ref = "coil" }
+
+[plugins]
+kotlinJvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+composeCompiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+intellijPlatform = { id = "org.jetbrains.intellij.platform", version.ref = "intellijPlatform" }
