@@ -1,8 +1,10 @@
 package ma7moud3ly.fast.compose.intellij
 
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.awt.ComposePanel
 import androidx.compose.ui.window.WindowExceptionHandler
+import com.intellij.ide.util.PropertiesComponent
 import com.intellij.ide.ui.LafManagerListener
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
@@ -42,6 +44,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import ma7moud3ly.fast.compose.bindings.resources.ResourceProvider
@@ -168,6 +171,7 @@ class PreviewPanel(private val project: Project) : JPanel(BorderLayout()), Dispo
         )
         // Another file the preview may use changed, or Kotlin files were added, removed or moved: rebuild the preview,
         // so classes and values declared outside composables (e.g. a data class) are read again too.
+        restoreDeviceAndZoom()
         sources.onChange = { paths, structureChanged ->
             val main = file?.path
             val affected = structureChanged || paths.any { it != main && sources.isKnown(it) }
@@ -373,6 +377,19 @@ class PreviewPanel(private val project: Project) : JPanel(BorderLayout()), Dispo
         }
     }
 
+    /** Restores the device and zoom saved for this project, and saves them whenever they change. */
+    private fun restoreDeviceAndZoom() {
+        val settings = PropertiesComponent.getInstance(project)
+        state.device = PreviewDevice.entries.find { it.name == settings.getValue(DEVICE_KEY) } ?: PreviewDevice.Phone
+        state.zoom = settings.getValue(ZOOM_KEY)?.toFloatOrNull()
+        scope.launch {
+            snapshotFlow { state.device to state.zoom }.drop(1).collect { (device, zoom) ->
+                settings.setValue(DEVICE_KEY, device.name, PreviewDevice.Phone.name)
+                settings.setValue(ZOOM_KEY, zoom?.toString())
+            }
+        }
+    }
+
     /** Opens [path] (the previewed file when null), e.g. a file the preview uses, at 1-based [line]. */
     private fun navigateTo(path: String?, line: Int) {
         val target = path?.let { LocalFileSystem.getInstance().findFileByPath(it) } ?: file ?: return
@@ -393,5 +410,7 @@ class PreviewPanel(private val project: Project) : JPanel(BorderLayout()), Dispo
     private companion object {
         const val TYPING_DELAY_MS = 150L
         const val MODEL_CHANGE_DELAY_MS = 1_000L
+        const val DEVICE_KEY = "fastCompose.preview.device"
+        const val ZOOM_KEY = "fastCompose.preview.zoom"
     }
 }

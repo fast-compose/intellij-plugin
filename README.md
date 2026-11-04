@@ -26,10 +26,19 @@ Renders the `@Preview` functions of the open Kotlin file as you type, powered by
 - `@Preview` first: a file is checked for a `@Preview` annotation in the background before anything else, with the
   engine's `KotlinParser.hasPreviews`, so comments, strings and imports don't count. Without one, nothing is done: no parsing, no
   resource listing, no lookups in other files, no rendering, no logs. Adding one starts the preview.
+- Each `@Preview` gets its own frame at a device size, scaled to fit the panel with the device's aspect ratio, so
+  `Scaffold` screens look as they do on a device. Previews without `widthDp`/`heightDp` wrap their content up to that
+  size. Scaling changes the density, so text stays sharp and clicks land correctly. Previews are centered and the
+  list scrolls both ways.
+- Bar below the previews:
+  - **Device**: Phone (411 × 891 dp, default), Foldable (673 × 841 dp), Tablet (1280 × 800 dp) or Desktop
+    (1920 × 1080 dp).
+  - **Zoom**: − and +, and a menu with Fit (default), 50 %, 75 %, 100 % and 150 %; Ctrl + mouse wheel also zooms.
+    Device and zoom are saved per project.
 - Title bar buttons:
   - **Refresh Preview** rebuilds the preview, reading the file, the files it uses and its resources again.
-  - **Open Preview in Window / Dock Preview** moves the preview to its own window, which can be dragged to a second
-    display. The IDE remembers the mode and position.
+  - **Open Preview in Window** moves the preview to its own window, which can be dragged to a second display; the
+    window's own Dock button moves it back. The IDE remembers the mode and position.
   - **Report Issue** opens a new GitHub issue for the Fast Compose engine (rendering, unsupported APIs, errors) or the
     plugin, prefilled with the plugin, engine, IDE and OS versions. No code is sent.
 - Crashes never leave an empty panel: an exception Compose throws while composing, measuring or drawing a preview is

@@ -15,7 +15,11 @@ class PreviewToolWindowFactory : ToolWindowFactory, DumbAware {
         content.setDisposer(panel)
         toolWindow.contentManager.addContent(content)
         toolWindow.setTitleActions(
-            listOf(RefreshPreviewAction(panel), ToggleWindowModeAction(toolWindow), ReportIssueGroup()),
+            listOf(
+                RefreshPreviewAction(panel),
+                ToggleWindowModeAction(toolWindow),
+                ReportIssueGroup(),
+            ),
         )
     }
 }
