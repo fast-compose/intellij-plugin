@@ -47,11 +47,16 @@ class ProjectLibraries(private val project: Project) : Disposable {
             Computable { ProjectFileIndex.getInstance(project).getModuleForFile(file) },
         ) ?: return null
         entries[module]?.let { return it }
-        // Without library jars, the resolver still serves the JDK, Kotlin and coroutines, e.g. `java.io.File`.
         val jars = application.runReadAction(Computable { libraryJars(module) })
+        // Without library jars, a shared resolver still serves the JDK, Kotlin and coroutines, e.g. `java.io.File`. It is
+        // not kept for the module, so its libraries are looked up again next time, e.g. once the IDE has loaded them.
+        if (jars.isEmpty()) return withoutLibraries
         val resolver = JarResolver(jars, host = javaClass.classLoader)
         return entries.putIfAbsent(module, resolver)?.also { resolver.close() } ?: resolver
     }
+
+    /** The resolver for modules without library jars. */
+    private val withoutLibraries by lazy { JarResolver(emptyList(), host = javaClass.classLoader) }
 
     /**
      * Library jars visible from [module], in classpath order, with JVM classes ([GradleJars.jvmJars]). KMP common

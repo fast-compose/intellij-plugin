@@ -134,6 +134,9 @@ class ProjectSources(private val project: Project, scope: CoroutineScope) : Disp
         override suspend fun find(packageName: String, name: String): SourceFile? =
             lookup("lookup of $packageName.$name", null) { sources.find(packageName, name, visibleRoots(), from.path) }
 
+        override suspend fun findAll(packageName: String, name: String): List<SourceFile> =
+            lookup("lookup of $packageName.$name", emptyList()) { sources.findAll(packageName, name, visibleRoots(), from.path) }
+
         /**
          * True when [packageName] has a folder under a source root of any project module (generated sources under
          * `build/` don't count), or next to [from] without a project model. Other packages are libraries, which the

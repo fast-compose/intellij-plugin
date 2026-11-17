@@ -43,6 +43,7 @@ import ma7moud3ly.fast.compose.interpreter.ExternalResolver
 import ma7moud3ly.fast.compose.interpreter.LocalExternalResolver
 import ma7moud3ly.fast.compose.interpreter.SourceProvider
 import ma7moud3ly.fast.compose.ui.rememberComposeCode
+import ma7moud3ly.fast.compose.ui.rememberFullRegistry
 
 /** The previewed file and its current text, written by [PreviewPanel] on the UI thread. */
 @Stable
@@ -89,6 +90,9 @@ class PreviewState(isDark: Boolean) {
     /** Height of the logs below the previews, changed by dragging the divider above them; kept across files. */
     var logsHeight: Dp by mutableStateOf(160.dp)
 
+    /** Whether the logs are shown below the previews; toggled by the user and saved per project by [PreviewPanel]. */
+    var showLogs: Boolean by mutableStateOf(false)
+
     /**
      * True while the IDE indexes the project, e.g. after a Gradle sync; other modules' files and resources may be
      * missing until then, and the preview refreshes when it ends.
@@ -123,12 +127,13 @@ class PreviewState(isDark: Boolean) {
 }
 
 /**
- * Previews every `@Preview` of [state]'s file, with its logs below when there is something to show. A file without a
- * `@Preview` annotation ([PreviewState.hasPreviews] false) is not parsed, loaded or rendered at all; only a message is
- * shown, and nothing is shown until the check is done.
+ * Previews every `@Preview` of [state]'s file, with its logs below while [PreviewState.showLogs] and the device bar at
+ * the bottom; the bar's Refresh calls [onRefresh]. A file without a `@Preview` annotation ([PreviewState.hasPreviews]
+ * false) is not parsed, loaded or rendered at all; only a message is shown, and nothing is shown until the check is
+ * done.
  */
 @Composable
-fun PreviewContent(state: PreviewState, onOpen: (file: String?, line: Int) -> Unit) {
+fun PreviewContent(state: PreviewState, onOpen: (file: String?, line: Int) -> Unit, onRefresh: () -> Unit) {
     MaterialTheme(colorScheme = if (state.isDark) darkColorScheme() else lightColorScheme()) {
         Surface(Modifier.fillMaxSize()) {
             val path = state.path
@@ -148,8 +153,8 @@ fun PreviewContent(state: PreviewState, onOpen: (file: String?, line: Int) -> Un
                     Box(Modifier.weight(1f).fillMaxWidth()) {
                         key(path, state.generation) {
                             when (state.hasPreviews) {
-                                true -> FilePreview(state, path, onOpen)
-                                false -> Message("No @Preview functions in ${path.substringAfterLast('/')}", Modifier.fillMaxSize())
+                                true -> FilePreview(state, path, onOpen, onRefresh)
+                                false -> NoPreviews(path, Modifier.fillMaxSize())
                                 null -> Unit
                             }
                         }
@@ -161,47 +166,69 @@ fun PreviewContent(state: PreviewState, onOpen: (file: String?, line: Int) -> Un
 }
 
 @Composable
-private fun FilePreview(state: PreviewState, path: String, onOpen: (file: String?, line: Int) -> Unit) {
+private fun FilePreview(
+    state: PreviewState,
+    path: String,
+    onOpen: (file: String?, line: Int) -> Unit,
+    onRefresh: () -> Unit,
+) {
     val code = rememberComposeCode(state.text, path, state.sources)
     LaunchedEffect(code) {
         snapshotFlow { state.text }.collect { code.update(it) }
     }
-    // After a crash the panel is new, and so is this code: report the crash in its logs once.
+    // After a crash the panel is new, and so is this code: report the crash in its logs once, and show them.
     val crash = state.crash
     LaunchedEffect(code, crash) {
-        if (crash != null) code.reportCrash(crash)
+        if (crash != null) {
+            code.reportCrash(crash)
+            state.showLogs = true
+        }
     }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         // The logs can grow until the previews keep only a small strip.
         val maxLogs = (maxHeight - MIN_PREVIEW_HEIGHT).coerceAtLeast(MIN_LOGS_HEIGHT)
         Column(Modifier.fillMaxSize()) {
-            val program = code.program
+            val registry = rememberFullRegistry()
+            val previews = rememberPreviews(code, registry, state.externals)
             when {
                 crash != null -> Message(
                     "The preview crashed; see the logs. Edit the file or press Refresh to try again.",
                     Modifier.weight(1f).fillMaxWidth(),
                 )
 
-                program != null && program.previews.isEmpty() -> Message(
-                    "No @Preview functions in ${path.substringAfterLast('/')}",
+                previews == null -> Message(
+                    if (code.isLoading) "Loading…" else "Fix the errors to see the preview",
                     Modifier.weight(1f).fillMaxWidth(),
                 )
 
+                previews.isEmpty() -> NoPreviews(path, Modifier.weight(1f).fillMaxWidth())
+
                 else -> CompositionLocalProvider(LocalExternalResolver provides state.externals) {
-                    DevicePreviews(state, code, Modifier.weight(1f).fillMaxWidth())
+                    DevicePreviews(state, code, registry, previews, Modifier.weight(1f).fillMaxWidth())
                 }
             }
-            if (hasLogs(code)) {
+            // Shown or hidden only by the user, so the previews don't move as errors and output come and go.
+            if (state.showLogs) {
                 LogsDivider { delta ->
                     state.logsHeight = (state.logsHeight - delta).coerceIn(MIN_LOGS_HEIGHT, maxLogs)
                 }
                 val logsHeight = state.logsHeight.coerceIn(MIN_LOGS_HEIGHT, maxLogs)
-                PreviewLogs(code, Modifier.fillMaxWidth().height(logsHeight), onOpen)
+                PreviewLogs(
+                    code,
+                    Modifier.fillMaxWidth().height(logsHeight),
+                    onOpen,
+                    onHide = { state.showLogs = false },
+                )
             }
-            if (crash == null && program?.previews?.isEmpty() != true) {
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                DeviceBar(state, Modifier.fillMaxWidth())
-            }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            DeviceBar(
+                state,
+                code,
+                showZoom = crash == null && previews?.isEmpty() != true,
+                onRefresh = onRefresh,
+                onReportIssue = ::reportIssue,
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
     }
 }
@@ -228,6 +255,11 @@ private fun LogsDivider(onDrag: (Dp) -> Unit) {
 
 private val MIN_LOGS_HEIGHT = 48.dp
 private val MIN_PREVIEW_HEIGHT = 80.dp
+
+@Composable
+private fun NoPreviews(path: String, modifier: Modifier) {
+    Message("No @Preview functions in ${path.substringAfterLast('/')}", modifier)
+}
 
 @Composable
 internal fun Message(text: String, modifier: Modifier) {
