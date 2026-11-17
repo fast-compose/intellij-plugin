@@ -39,11 +39,16 @@ Then open a Kotlin file with preview functions and click **Fast Compose Preview*
   `Scaffold` screens look as they do on a device. Previews without `widthDp`/`heightDp` wrap their content up to that
   size. Scaling changes the density, so text stays sharp and clicks land correctly. Previews are centered and the
   list scrolls both ways.
-- Bar below the previews:
+- Multi-preview annotations (`@PreviewLightDark`, `@PreviewScreenSizes`, `@PreviewFontScale`,
+  `@PreviewDynamicColors` and the project's own annotation classes) and `@PreviewParameter`, one frame per preview,
+  through the engine's `previews`. Each preview runs in its own interpreter; the list is read by another one.
+- Compact bar below the previews, as in the VS Code extension:
   - **Device**: Phone (411 × 891 dp, default), Foldable (673 × 841 dp), Tablet (1280 × 800 dp) or Desktop
-    (1920 × 1080 dp).
+    (1920 × 1080 dp). In a narrow panel only the device's name shows.
+  - **Logs** shows or hides the logs pane, with the number of lines, in red when there are errors.
+  - **Refresh** and **Report Issue** icons, the same as the title bar buttons.
   - **Zoom**: − and +, and a menu with Fit (default), 50 %, 75 %, 100 % and 150 %; Ctrl + mouse wheel also zooms.
-    Device and zoom are saved per project.
+  - Device, zoom and whether the logs show are saved per project. After a crash, Device and Zoom are hidden.
 - Title bar buttons:
   - **Refresh Preview** rebuilds the preview, reading the file, the files it uses and its resources again.
   - **Open Preview in Window** moves the preview to its own window, which can be dragged to a second display; the
@@ -55,7 +60,9 @@ Then open a Kotlin file with preview functions and click **Fast Compose Preview*
   until the file is edited, Refresh is pressed or another file is opened. If that panel crashes too, the error shows
   as plain text.
 - Logs pane for the previewed file's parse errors, runtime errors and output; clicking a line opens it. Lines about
-  other files the preview uses are behind an **Other files** toggle, and clicking one opens that file.
+  other files the preview uses are behind an **Other files** toggle, and clicking one opens that file. It opens and
+  closes only with the **Logs** button or its **Hide** button, so the previews don't move as errors come and go; a
+  crash opens it. **Copy all** and **Clear** act on its lines.
 - Composables, classes and values from other project files (see [Other files](#other-files)).
 - Images and strings from `R` and `Res` (see [Resources](#resources)).
 - Network images (`AsyncImage`) through Coil's OkHttp fetcher, cached on disk (up to 100 MB) in the IDE's system
@@ -110,6 +117,11 @@ Previews read resources from the Gradle source set layout of the previewed file:
 The plugin ships its own Compose Multiplatform, Material 3 and Skiko (with native libraries for Windows, macOS and
 Linux, each on x64 and ARM64), matching the versions Fast Compose is built with. It does not use the IDE's Compose. `BundledSkiko` loads the
 plugin's Skiko native library from its jar into `~/.skiko`. The IDE provides Kotlin and coroutines.
+
+## Roadmap
+
+- **PNG export:** save a preview as an image for CI snapshots, PR comments and AI agents (through
+  [compose-cli](https://github.com/fast-compose/compose-cli)), on top of live previews, not instead of them.
 
 ## Run
 

@@ -43,17 +43,26 @@ private fun logText(lines: List<LogLine>): String = lines.joinToString("\n") { l
     if (name == null || line.text.startsWith(name)) line.text else "$name: ${line.text}"
 }
 
-/** True when [code] has parse errors, runtime errors or output to show in [PreviewLogs]. */
-internal fun hasLogs(code: ComposeCode) = code.logs.isNotEmpty() || code.diagnostics.isNotEmpty()
+/** The number of lines [PreviewLogs] shows for [code]: parse errors, runtime errors and output. */
+internal fun logCount(code: ComposeCode): Int = code.diagnostics.size + code.logs.size
+
+/** True when [code] has parse or runtime errors. */
+internal fun hasErrors(code: ComposeCode): Boolean =
+    code.diagnostics.any { it.severity == Diagnostic.Severity.ERROR } || code.logs.any { it.isError }
 
 /**
  * Problems and output of the previewed file: its parse errors, then runtime errors and `println` output, newest last.
  * Lines about other files the preview uses (e.g. `Theme.kt:12: …`) are hidden behind an "Other files" toggle, so
  * they don't mix with this file's. Clicking a line with a location calls [onOpen] with its file (null for the
- * previewed file) and 1-based line.
+ * previewed file) and 1-based line. "Copy all" copies every line as text; "Hide" calls [onHide].
  */
 @Composable
-internal fun PreviewLogs(code: ComposeCode, modifier: Modifier, onOpen: (file: String?, line: Int) -> Unit) {
+internal fun PreviewLogs(
+    code: ComposeCode,
+    modifier: Modifier,
+    onOpen: (file: String?, line: Int) -> Unit,
+    onHide: () -> Unit,
+) {
     val diagnostics = code.diagnostics.map {
         val isError = it.severity == Diagnostic.Severity.ERROR
         LogLine("Line ${it.span.line}:${it.span.column}: ${it.message}", isError, it.span.line, isWarning = !isError)
@@ -90,8 +99,11 @@ internal fun PreviewLogs(code: ComposeCode, modifier: Modifier, onOpen: (file: S
                 Text(if (copied) "Copied" else "Copy all", fontSize = 12.sp)
             }
             TextButton(onClick = { code.clearLogs() }) { Text("Clear", fontSize = 12.sp) }
+            TextButton(onClick = onHide) { Text("Hide", fontSize = 12.sp) }
         }
-        SelectionContainer {
+        if (entries.isEmpty()) {
+            Message("No problems or output", Modifier.fillMaxSize())
+        } else SelectionContainer {
             LazyColumn(state = listState, modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp)) {
                 items(entries) { entry ->
                     val line = entry.line

@@ -1,7 +1,7 @@
 [versions]
 kotlin = "2.4.21"
 intellijPlatform = "2.17.0"
-fastCompose = "0.2.0"
+fastCompose = "0.3.0"
 composeMultiplatform = "1.12.2"
 material3 = "1.12.0-alpha03"
 coil = "3.6.3"

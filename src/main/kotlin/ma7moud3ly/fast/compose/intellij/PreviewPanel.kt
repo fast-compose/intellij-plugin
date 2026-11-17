@@ -171,7 +171,7 @@ class PreviewPanel(private val project: Project) : JPanel(BorderLayout()), Dispo
         )
         // Another file the preview may use changed, or Kotlin files were added, removed or moved: rebuild the preview,
         // so classes and values declared outside composables (e.g. a data class) are read again too.
-        restoreDeviceAndZoom()
+        restoreSettings()
         sources.onChange = { paths, structureChanged ->
             val main = file?.path
             val affected = structureChanged || paths.any { it != main && sources.isKnown(it) }
@@ -183,7 +183,7 @@ class PreviewPanel(private val project: Project) : JPanel(BorderLayout()), Dispo
     /** A Compose panel showing the preview; exceptions while composing, measuring or drawing go to [onCrash]. */
     private fun createCompose(): ComposePanel = ComposePanel().apply {
         exceptionHandler = WindowExceptionHandler { onCrash(it) }
-        setContent { PreviewContent(state, onOpen = ::navigateTo) }
+        setContent { PreviewContent(state, onOpen = ::navigateTo, onRefresh = ::refresh) }
     }
 
     /**
@@ -377,15 +377,17 @@ class PreviewPanel(private val project: Project) : JPanel(BorderLayout()), Dispo
         }
     }
 
-    /** Restores the device and zoom saved for this project, and saves them whenever they change. */
-    private fun restoreDeviceAndZoom() {
+    /** Restores the device, zoom and logs visibility saved for this project, and saves them whenever they change. */
+    private fun restoreSettings() {
         val settings = PropertiesComponent.getInstance(project)
         state.device = PreviewDevice.entries.find { it.name == settings.getValue(DEVICE_KEY) } ?: PreviewDevice.Phone
         state.zoom = settings.getValue(ZOOM_KEY)?.toFloatOrNull()
+        state.showLogs = settings.getBoolean(LOGS_KEY, false)
         scope.launch {
-            snapshotFlow { state.device to state.zoom }.drop(1).collect { (device, zoom) ->
+            snapshotFlow { Triple(state.device, state.zoom, state.showLogs) }.drop(1).collect { (device, zoom, logs) ->
                 settings.setValue(DEVICE_KEY, device.name, PreviewDevice.Phone.name)
                 settings.setValue(ZOOM_KEY, zoom?.toString())
+                settings.setValue(LOGS_KEY, logs, false)
             }
         }
     }
@@ -412,5 +414,6 @@ class PreviewPanel(private val project: Project) : JPanel(BorderLayout()), Dispo
         const val MODEL_CHANGE_DELAY_MS = 1_000L
         const val DEVICE_KEY = "fastCompose.preview.device"
         const val ZOOM_KEY = "fastCompose.preview.zoom"
+        const val LOGS_KEY = "fastCompose.preview.logs"
     }
 }

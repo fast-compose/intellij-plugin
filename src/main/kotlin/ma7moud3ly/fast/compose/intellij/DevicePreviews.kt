@@ -1,5 +1,6 @@
 package ma7moud3ly.fast.compose.intellij
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -11,9 +12,11 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
@@ -21,11 +24,17 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TooltipAnchorPosition
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -39,6 +48,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.isCtrlPressed
@@ -54,37 +64,47 @@ import ma7moud3ly.fast.compose.bindings.foundation.LocalPreviewDarkTheme
 import ma7moud3ly.fast.compose.bindings.foundation.LocalPreviewWindowSize
 import ma7moud3ly.fast.compose.bindings.resources.LocalResourceEnvironment
 import ma7moud3ly.fast.compose.bindings.resources.ResourceEnvironment
+import ma7moud3ly.fast.compose.interpreter.ExternalResolver
 import ma7moud3ly.fast.compose.interpreter.Interpreter
 import ma7moud3ly.fast.compose.interpreter.Registry
 import ma7moud3ly.fast.compose.ui.ComposeCode
 import ma7moud3ly.fast.compose.ui.FastComposeContent
 import ma7moud3ly.fast.compose.ui.PreviewConfig
-import ma7moud3ly.fast.compose.ui.previewConfig
-import ma7moud3ly.fast.compose.ui.rememberFullRegistry
+import ma7moud3ly.fast.compose.ui.PreviewEntry
+import ma7moud3ly.fast.compose.ui.previews
 
 /**
- * Lists every `@Preview` of [code], each in its own frame at [PreviewState.device]'s size, scaled by
+ * Every preview of [code]'s file, from the engine's `previews`: one per `@Preview`, one per `@Preview` of a
+ * multi-preview annotation (e.g. `@PreviewLightDark` or the project's own), and one per value of a `@PreviewParameter`
+ * provider. Null while the file has no parsed program, e.g. while loading or with parse errors. Read with an
+ * interpreter of its own, using [externals] for library code in providers; a failing provider is skipped.
+ */
+@Composable
+fun rememberPreviews(code: ComposeCode, registry: Registry, externals: ExternalResolver?): List<PreviewEntry>? {
+    val program = code.program ?: return null
+    val dependencies = code.dependencies
+    return remember(program, dependencies, registry, externals) {
+        val reader = Interpreter(program, registry, dependencies = dependencies, externals = externals)
+        runCatching { reader.previews(program) }.getOrDefault(emptyList())
+    }
+}
+
+/**
+ * Lists [previews] of [code], each in its own frame at [PreviewState.device]'s size, scaled by
  * [PreviewState.zoom] or, with Fit, to the largest scale at which one device fits the panel. A preview without
  * `widthDp`/`heightDp` wraps its content up to the device size, so full screens get the whole device. Scaling changes
  * the density, not a picture: previews lay out in device dp, text stays sharp and clicks land where they should.
- * Names keep the IDE's size. The list is centered and scrolls both ways; Ctrl + mouse wheel zooms.
+ * Names keep the panel's size. Each preview is centered in the panel's width, and one wider than the panel starts at
+ * its left edge; the list scrolls both ways, and Ctrl + mouse wheel zooms.
  */
 @Composable
-fun DevicePreviews(state: PreviewState, code: ComposeCode, modifier: Modifier) {
-    val program = code.program
-    if (program == null) {
-        Message(if (code.isLoading) "Loading…" else "Fix the errors to see the preview", modifier)
-        return
-    }
-    val registry = rememberFullRegistry()
-    val dependencies = code.dependencies
-    val previews = remember(program, dependencies, registry) {
-        val reader = Interpreter(program, registry, dependencies = dependencies)
-        program.previews.map { (function, annotation) ->
-            val config = runCatching { reader.previewConfig(function, annotation) }.getOrNull()
-            function.name to (config ?: PreviewConfig(name = function.name))
-        }
-    }
+fun DevicePreviews(
+    state: PreviewState,
+    code: ComposeCode,
+    registry: Registry,
+    previews: List<PreviewEntry>,
+    modifier: Modifier,
+) {
     BoxWithConstraints(modifier.clipToBounds().zoomOnCtrlWheel(state)) {
         val device = state.device
         val fit = minOf(
@@ -99,11 +119,14 @@ fun DevicePreviews(state: PreviewState, code: ComposeCode, modifier: Modifier) {
             Column(
                 Modifier.widthIn(min = panelWidth).heightIn(min = panelHeight).padding(PADDING),
                 verticalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterVertically),
-                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                previews.forEachIndexed { index, (entry, config) ->
-                    key(entry, index) {
-                        DevicePreview(state, code, registry, entry, config, device, zoom)
+                previews.forEachIndexed { index, preview ->
+                    key(preview.function.name, index) {
+                        // Centered in the panel's visible width, so a wider preview doesn't push the others aside;
+                        // a preview wider than the panel starts at its left edge.
+                        Box(Modifier.widthIn(min = panelWidth - PADDING * 2), contentAlignment = Alignment.TopCenter) {
+                            DevicePreview(state, code, registry, preview, device, zoom)
+                        }
                     }
                 }
             }
@@ -111,17 +134,20 @@ fun DevicePreviews(state: PreviewState, code: ComposeCode, modifier: Modifier) {
     }
 }
 
-/** One preview: its name, then [entry] in a frame of [device]'s size (or the `@Preview` size), scaled by [zoom]. */
+/**
+ * One preview: its name, then its function, called with its arguments, in a frame of [device]'s size (or the
+ * `@Preview` size), scaled by [zoom].
+ */
 @Composable
 private fun DevicePreview(
     state: PreviewState,
     code: ComposeCode,
     registry: Registry,
-    entry: String,
-    config: PreviewConfig,
+    preview: PreviewEntry,
     device: PreviewDevice,
     zoom: Float,
 ) {
+    val config = preview.config
     Column {
         Text(
             config.title(),
@@ -133,7 +159,9 @@ private fun DevicePreview(
         val height = (config.heightDp ?: device.heightDp).dp
         val size = Modifier
             .then(if (config.widthDp != null) Modifier.width(width * zoom) else Modifier.widthIn(max = width * zoom))
-            .then(if (config.heightDp != null) Modifier.height(height * zoom) else Modifier.heightIn(max = height * zoom))
+            .then(
+                if (config.heightDp != null) Modifier.height(height * zoom) else Modifier.heightIn(max = height * zoom),
+            )
         val border = MaterialTheme.colorScheme.outlineVariant
         val base = LocalDensity.current
         MaterialTheme(colorScheme = if (config.darkTheme) darkColorScheme() else lightColorScheme()) {
@@ -150,7 +178,13 @@ private fun DevicePreview(
                     LocalInspectionMode provides true,
                     LocalPreviewWindowSize provides DpSize(width, height),
                 ) {
-                    FastComposeContent(code, entry = entry, registry = registry, resources = state.resources)
+                    FastComposeContent(
+                        code,
+                        entry = preview.function.name,
+                        registry = registry,
+                        resources = state.resources,
+                        arguments = preview.arguments,
+                    )
                 }
             }
         }
@@ -184,36 +218,102 @@ private fun Modifier.zoomOnCtrlWheel(state: PreviewState): Modifier = pointerInp
     }
 }
 
-/** Bar below the previews: the device menu on the left; zoom out, the zoom menu and zoom in on the right. */
+/**
+ * Bar below the previews: the device menu, the Logs button and the Refresh and Report Issue icons on the left; zoom
+ * out, the zoom menu and zoom in on the right. Without [showZoom], e.g. after a crash, the device menu and zoom are
+ * hidden. The Logs button shows or hides the logs, and counts the lines of [code]'s logs, in the error color when
+ * there are errors. Refresh calls [onRefresh]; Report Issue opens a menu of [ReportIssueTarget]s and calls
+ * [onReportIssue] with the picked one. Below [COMPACT_BAR_WIDTH], the device menu shows the device's name without its
+ * size.
+ */
 @Composable
-fun DeviceBar(state: PreviewState, modifier: Modifier) {
-    Row(modifier.height(32.dp).padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+fun DeviceBar(
+    state: PreviewState,
+    code: ComposeCode,
+    showZoom: Boolean,
+    onRefresh: () -> Unit,
+    onReportIssue: (ReportIssueTarget) -> Unit,
+    modifier: Modifier,
+) {
+    BoxWithConstraints(modifier) {
+        DeviceBarRow(state, code, showZoom, compact = maxWidth < COMPACT_BAR_WIDTH, onRefresh, onReportIssue)
+    }
+}
+
+@Composable
+private fun DeviceBarRow(
+    state: PreviewState,
+    code: ComposeCode,
+    showZoom: Boolean,
+    compact: Boolean,
+    onRefresh: () -> Unit,
+    onReportIssue: (ReportIssueTarget) -> Unit,
+) {
+    Row(
+        Modifier.fillMaxWidth().height(32.dp).padding(horizontal = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         val device = state.device
-        MenuButton("${device.title}  ${device.widthDp} × ${device.heightDp}") { close ->
-            PreviewDevice.entries.forEach {
-                MenuItem("${it.title}  (${it.widthDp} × ${it.heightDp} dp)", selected = it == device) {
-                    state.device = it
-                    close()
+        if (showZoom) {
+            val dimensions = if (compact) "" else "  ${device.widthDp} × ${device.heightDp}"
+            MenuButton("${device.title}$dimensions") { close ->
+                PreviewDevice.entries.forEach {
+                    MenuItem("${it.title}  (${it.widthDp} × ${it.heightDp} dp)", selected = it == device) {
+                        state.device = it
+                        close()
+                    }
                 }
             }
         }
-        Spacer(Modifier.weight(1f))
-        BarButton("−") { state.zoomBy(-1) }
-        val zoom = state.zoom
-        MenuButton(if (zoom == null) "Fit  ${percent(state.fitZoom)}" else percent(zoom)) { close ->
-            MenuItem("Fit", selected = zoom == null) {
-                state.zoom = null
+        val count = logCount(code)
+        BarButton(
+            text = if (count == 0) "Logs" else "Logs ($count)",
+            color = if (hasErrors(code)) MaterialTheme.colorScheme.error else Color.Unspecified,
+            selected = state.showLogs,
+        ) {
+            state.showLogs = !state.showLogs
+        }
+        IconBarButton(BarIcons.Refresh, "Refresh", onClick = onRefresh)
+        var reporting by remember { mutableStateOf(false) }
+        Box {
+            IconBarButton(BarIcons.Feedback, "Report Issue") { reporting = true }
+            DropdownMenu(expanded = reporting, onDismissRequest = { reporting = false }) {
+                ReportIssueTarget.entries.forEach {
+                    DropdownMenuItem(
+                        text = { Text(it.title, style = MaterialTheme.typography.bodySmall) },
+                        onClick = {
+                            reporting = false
+                            onReportIssue(it)
+                        },
+                    )
+                }
+            }
+        }
+        if (showZoom) {
+            Spacer(Modifier.weight(1f))
+            ZoomButtons(state)
+        }
+    }
+}
+
+/** Zoom out, the zoom menu (Fit and [ZOOM_LEVELS]) and zoom in. */
+@Composable
+private fun ZoomButtons(state: PreviewState) {
+    BarButton("−") { state.zoomBy(-1) }
+    val zoom = state.zoom
+    MenuButton(if (zoom == null) "Fit  ${percent(state.fitZoom)}" else percent(zoom)) { close ->
+        MenuItem("Fit", selected = zoom == null) {
+            state.zoom = null
+            close()
+        }
+        ZOOM_LEVELS.forEach {
+            MenuItem(percent(it), selected = zoom == it) {
+                state.zoom = it
                 close()
             }
-            ZOOM_LEVELS.forEach {
-                MenuItem(percent(it), selected = zoom == it) {
-                    state.zoom = it
-                    close()
-                }
-            }
         }
-        BarButton("+") { state.zoomBy(1) }
     }
+    BarButton("+") { state.zoomBy(1) }
 }
 
 /** A [BarButton] that opens a menu of [items]; each item calls the given `close` when picked. */
@@ -237,14 +337,46 @@ private fun MenuItem(text: String, selected: Boolean, onClick: () -> Unit) {
     )
 }
 
+/** A text button of the bar, in [color] when given, with a background while [selected]. */
 @Composable
-private fun BarButton(text: String, onClick: () -> Unit) {
+private fun BarButton(
+    text: String,
+    color: Color = Color.Unspecified,
+    selected: Boolean = false,
+    onClick: () -> Unit,
+) {
     Box(
-        Modifier.clip(RoundedCornerShape(4.dp)).clickable(onClick = onClick).padding(horizontal = 8.dp, vertical = 4.dp),
+        Modifier
+            .clip(RoundedCornerShape(4.dp))
+            .then(if (selected) Modifier.background(MaterialTheme.colorScheme.secondaryContainer) else Modifier)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 4.dp),
     ) {
-        Text(text, style = MaterialTheme.typography.labelMedium)
+        Text(text, style = MaterialTheme.typography.labelMedium, color = color, maxLines = 1, softWrap = false)
     }
 }
+
+/** An [icon] button of the bar, with [label] as its tooltip on hover. */
+@Composable
+private fun IconBarButton(icon: ImageVector, label: String, onClick: () -> Unit) {
+    TooltipBox(
+        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
+        tooltip = { PlainTooltip { Text(label) } },
+        state = rememberTooltipState(),
+    ) {
+        Box(
+            Modifier
+                .clip(RoundedCornerShape(4.dp))
+                .clickable(onClick = onClick)
+                .padding(6.dp),
+        ) {
+            Icon(icon, contentDescription = label, modifier = Modifier.size(16.dp))
+        }
+    }
+}
+
+/** Bar width below which the device menu leaves out the device's size. */
+private val COMPACT_BAR_WIDTH = 420.dp
 
 private val PADDING = 16.dp
 
